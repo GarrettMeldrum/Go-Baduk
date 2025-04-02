@@ -1,4 +1,7 @@
+import os
 import tkinter as tk
+from PIL import Image, ImageTk
+
 
 board_size = 19 # Size of the board, 19x19 is standard for the game of Go.
 cell_size = 40 # size of each cell, represented in pixels
@@ -6,14 +9,37 @@ stone_size = 18 # radius of the stone piece, represented in pixels
 black, white = 'black', 'white' # Color of pieces
 background = '' # Background color of the board.
 click_tolerance = cell_size // 3 # Allow clicks within 1 / value of a cell's size 
-
-board = [[None for _ in range(board_size)] for _ in range(board_size)]
 current_player = black
 
-root = tk.Tk() # Generate the TKinter screen
-root.title("Go Game") # Title displayed at the top left/right
-canvas = tk.Canvas(root, width= cell_size * board_size, height= cell_size * board_size, bg='green')
+# initiate the board size with a neat line
+board = [[None for _ in range(board_size)] for _ in range(board_size)]
+# Get script directory and image path
+script_dir = os.path.dirname(os.path.abspath(__file__))
+image_path = os.path.join(script_dir, 'images', 'wooden_board.png')
+
+# Debugging output
+print(f"Trying to load image from: {image_path}")
+
+# Load board texture
+try:
+    board_texture = Image.open(image_path)
+    board_texture = board_texture.resize((cell_size * board_size, cell_size * board_size))
+except FileNotFoundError:
+    print("Error: Board image not found!")
+    board_texture = None
+
+# Create Tkinter window
+root = tk.Tk()
+root.title("Go Game")
+canvas = tk.Canvas(root, width=cell_size * board_size, height=cell_size * board_size)
+
+# Display background image if loaded
+if board_texture:
+    root.board_image = ImageTk.PhotoImage(board_texture)  # Store reference
+    canvas.create_image(0, 0, anchor='nw', image=root.board_image)
+
 canvas.pack()
+
 
 def draw_board():
 
@@ -26,6 +52,7 @@ def draw_board():
         # Draw vertical lines
         canvas.create_line(cell_size // 2 + i * cell_size, cell_size // 2,
                            cell_size // 2 + i * cell_size, cell_size // 2 + (board_size - 1) * cell_size)
+
 
 
 def draw_stone(x, y, color):
@@ -76,6 +103,7 @@ def on_click(event):
         print(f"Click too far from valid point: ({closest_x}, {closest_y})")
     
     print(f"Mouse Click - Pixel Position: ({event.x}, {event.y}) | Grid Position: ({closest_x}, {closest_y})")
+
 
 
 
