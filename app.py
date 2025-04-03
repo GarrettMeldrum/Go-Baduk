@@ -20,8 +20,10 @@ current_player = black # Set the starting player to black
 # initiate the board size with a neat line
 board = [[None for _ in range(board_size)] for _ in range(board_size)]
 
-dir = os.path.dirname(os.path.abspath(__file__)) # Set dir dynamically so that we can utilize images and other scripts when necessary
-image_path = os.path.join(dir, 'images', 'wooden_board.png') # The location of the background for our board
+dir = os.path.dirname(os.path.abspath(__file__)) # set dir dynamically so that we can utilize images and other scripts when necessary
+image_path = os.path.join(dir, 'images', 'wooden_board.png') # location of the background for our board
+black_game_piece_image = os.path.join(dir, 'images', 'black_game_piece.png') # location of the black game piece
+white_game_piece_image = os.path.join(dir, 'images', 'white_game_piece.png') # location of the white game piece
 
 # Attempt to load the background texture
 try:
@@ -32,10 +34,25 @@ except FileNotFoundError:
     print("Error: Board image not found!")
     board_texture = None
 
+
 # Create Tkinter(root) window
 root = tk.Tk()
 root.title("The Game of Go(Baduk)")
 canvas = tk.Canvas(root, width=cell_size * board_size, height=cell_size * board_size)
+
+
+try:
+    black_stone_image = Image.open(black_game_piece_image).resize((stone_size * 3, stone_size * 3))
+    white_stone_image = Image.open(white_game_piece_image).resize((stone_size * 3, stone_size * 3))
+
+    # conversion to PhotoImage for Tkinter to handle the images
+    black_stone = ImageTk.PhotoImage(black_stone_image)
+    white_stone = ImageTk.PhotoImage(white_stone_image)
+except FileNotFoundError:
+    print("Error: Stone images not found")
+    black_stone = None
+    white_stone = None
+
 
 # Display background image if loaded
 if board_texture:
@@ -60,13 +77,21 @@ def draw_board():
 
 def draw_stone(x, y, color):
 
-    canvas.create_oval(
-        cell_size // 2 + x * cell_size - stone_size,
-        cell_size // 2 + y * cell_size - stone_size,
-        cell_size // 2 + x * cell_size + stone_size,
-        cell_size // 2 + y * cell_size + stone_size,
-        fill=color
+    if color == black and black_stone:
+        stone_image = black_stone
+    elif color == white and white_stone:
+        stone_image = white_stone
+    else:
+        return
+    
+
+    canvas.create_image(
+        cell_size // 2 + x * cell_size,
+        cell_size // 2 + y * cell_size,
+        image=stone_image,
+        tags="stone_{}_{}".format(x,y)
     )
+    
 
 
 def is_valid_move(x, y):
@@ -82,12 +107,82 @@ def is_valid_move(x, y):
     return True
 
 
+# identify the group a stone belongs to by searching all adjacent stones of the same color
+def dfs(x, y, color):
+    group = [(x, y)]
+    visited = set(group)
+
+    stack = [(x, y)]
+
+    while stack:
+        cx, cy = stack.pop()
+
+        for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            nx, ny = cx + dx, cy + dy
+
+            if 0 <= nx < board_size and 0 <= ny < board_size and (nx, ny) not in visited:
+                if board[ny][nx] == color:
+                    group.append((nx, ny))
+                    visited.add((nx, ny))
+                    stack.append((nx, ny))
+    
+    return group
+
+
+# check liberties of a group.
+def check_liberties(group):
+    liberties = set()
+
+    for x, y in group:
+        # check the adjacent cells
+        for dx, dy in [(-1,0), (1, 0), (0, -1), (0, 1)]:
+            nx, ny = x + dx, y + dy
+
+            if 0 <= nx < board_size and 0 <= ny < board_size:
+                if board[ny][nx] is None: # Empty space liberty
+                    liberties.add((nx, ny))
+    
+    return liberties
+
+
+# check if any opponent's group is surrounded (has no liberties left)
+def capture_stones():
+    captured_stones = []
+    for y in range(board_size):
+        for x in range(board_size):
+            if board[y][x] is not None:
+                color = board[y][x]
+
+                group = dfs(x, y, color)
+
+                liberties = check_liberties(group)
+
+                if not liberties:
+                    captured_stones.extend(group)
+    
+    for x, y in captured_stones:
+        board[y][x] = None
+        canvas.delete("stone_{}_{}".format(x,y))
+
+    return captured_stones
+
+
+# execute the placing of the stones
 def place_stones(x, y):
+
     global current_player
+
     print(f"Placing stone at ({x}, {y})")
+
     if is_valid_move(x, y):
         board[y][x] = current_player
         draw_stone(x, y, current_player)
+
+        captured = capture_stones()
+
+        if captured:
+            print(f"Captured stones: {captured}")
+
         current_player = white if current_player == black else black
 
 
